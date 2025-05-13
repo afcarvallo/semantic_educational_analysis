@@ -104,7 +104,7 @@ class DataLoader:
         # Preprocess comments
         self._preprocess_comments()
         
-        return self.dataframe.sample(50) 
+        return self.dataframe #.sample(50) 
     
     def _preprocess_comments(self):
         """Preprocess the comments in the dataframe."""
