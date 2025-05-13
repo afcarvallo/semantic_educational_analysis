@@ -97,6 +97,63 @@ The script generates a CSV file containing the top N responses ranked by semanti
      - `phase`: Phase number (only Phase 1 is used)
      - `df`: Question number (1 or 2) 
 
+### Performance Analysis with Valgrind
+
+You can use Valgrind to analyze memory usage and performance of the different models. Here's how to use it:
+
+1. Install Valgrind:
+```bash
+# On Ubuntu/Debian
+sudo apt-get install valgrind
+
+# On macOS (using Homebrew)
+brew install valgrind
+
+# On CentOS/RHEL
+sudo yum install valgrind
+```
+
+2. Run memory analysis:
+```bash
+valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --verbose --log-file=valgrind-out.txt python main.py -m MODEL -c data/case.txt -q 1
+```
+
+3. Run performance analysis:
+```bash
+valgrind --tool=callgrind --callgrind-out-file=callgrind.out python main.py -m MODEL -c data/case.txt -q 1
+```
+
+4. Analyze the results:
+```bash
+# For memory analysis
+cat valgrind-out.txt
+
+# For performance analysis (requires KCachegrind)
+kcachegrind callgrind.out
+```
+
+Example output interpretation:
+```
+==12345== HEAP SUMMARY:
+==12345==     in use at exit: 0 bytes in 0 blocks
+==12345==   total heap usage: 1,234 allocs, 1,234 frees, 123,456 bytes allocated
+```
+
+Performance metrics to look for:
+- Memory leaks (if any)
+- Heap usage
+- CPU time per model
+- Number of allocations/deallocations
+- Cache misses
+
+Note: When running Valgrind with Python, you might need to use the `--suppressions` flag to suppress Python-specific warnings. You can generate a suppression file using:
+```bash
+valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --gen-suppressions=all python main.py -m MODEL -c data/case.txt -q 1 > python.supp
+```
+
+### Programmatic Usage
+
+You can also use the analyzer programmatically:
 
 ## Citation
 
