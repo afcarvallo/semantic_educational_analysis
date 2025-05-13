@@ -97,38 +97,6 @@ The script generates a CSV file containing the top N responses ranked by semanti
      - `phase`: Phase number (only Phase 1 is used)
      - `df`: Question number (1 or 2) 
 
-### Programmatic Usage
-
-You can also use the analyzer programmatically:
-
-```python
-from main import SemanticAnalyzer
-
-# Single model analysis
-analyzer = SemanticAnalyzer(
-    model_name='tfidf',
-    case_file='data/case.txt',
-    question_number=1,
-    top_n=30
-)
-results = analyzer.analyze()
-
-# Ensemble analysis with custom weights
-weights = {
-    'beto': 0.2,
-    'use': 0.5,
-    'tfidf': 0.3
-}
-analyzer = SemanticAnalyzer(
-    model_name='beto',  # This will be overridden for ensemble
-    case_file='data/case.txt',
-    question_number=1,
-    top_n=30,
-    use_ensemble=True,
-    weights=weights
-)
-results = analyzer.analyze()
-```
 
 ## Citation
 
@@ -137,7 +105,7 @@ If you use this code in your research, please cite our paper:
 ```bibtex
 @article{low_footprint_nlp,
   title={Low-Footprint NLP for Reducing Teacher's Orchestration Load in Computer-Supported Case-Based Learning Environments},
-  author={Claudio Alvarez,Andres Carvallo,Gustavo Zurita  Names},
+  author={Claudio Alvarez,Andres Carvallo,Gustavo Zurita},
   journal={Journal of Universal Computer Science},
   year={2025}
 }
