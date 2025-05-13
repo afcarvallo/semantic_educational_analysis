@@ -8,7 +8,6 @@ This repository contains the implementation of a semantic analysis system for ed
   - BETO (Spanish BERT)
   - Universal Sentence Encoder
   - TF-IDF
-- Command-line interface for easy usage
 - Configurable number of top responses
 - Support for Spanish language processing
 - Automatic stopwords removal and text preprocessing
