@@ -47,7 +47,6 @@ python main.py -m MODEL -c CASE_FILE -q QUESTION_NUMBER -o OUTPUT_FILE [-n TOP_N
 - `-m, --model`: Model to use for analysis (choices: 'beto', 'use', 'tfidf')
 - `-c, --case`: Input file containing the case text
 - `-q, --question`: Question number to analyze (1 or 2)
-- `-o, --output`: Output file for selected responses
 - `-n, --topn`: Number of top responses to select (default: 30)
 
 ### Available Questions
@@ -60,7 +59,7 @@ The system includes two predefined questions:
 ### Example
 
 ```bash
-python main.py -m beto -c data/case.txt -q 1 -n 30
+python main.py -m tfidf -c data/case.txt -q 1 -n 30
 ```
 
 ### Input File Formats
