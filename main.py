@@ -132,15 +132,35 @@ class DataLoader:
         logging.info(f"Average comment length: {avg_length:.1f} characters")
 
 class SemanticAnalyzer:
-    def __init__(self, model_name, case_file, question_number, top_n=30):
+    def __init__(self, model_name, case_file, question_number, top_n=30, use_ensemble=False, weights=None):
         self.model_name = model_name
         self.case_file = case_file
         self.question_number = question_number
         self.top_n = top_n
+        self.use_ensemble = use_ensemble
         self.device = setup_environment()
         self.stop_words = set(stopwords.words('spanish'))
         
+        # Define ensemble weights
+        if weights is None:
+            self.ensemble_weights = {
+                'beto': 0.333333,
+                'use': 0.333333,
+                'tfidf': 0.333333
+            }
+        else:
+            self.ensemble_weights = weights
+            
+        # Validate weights
+        if use_ensemble:
+            total_weight = sum(self.ensemble_weights.values())
+            if not np.isclose(total_weight, 1.0, atol=1e-6):
+                raise ValueError(f"Model weights must sum to 1.0, got {total_weight}")
+        
         logging.info(f"Initializing analyzer with model: {model_name}")
+        if use_ensemble:
+            logging.info("Ensemble mode enabled")
+            logging.info(f"Using custom weights: {self.ensemble_weights}")
         
         # Initialize models
         self._initialize_models()
@@ -223,6 +243,48 @@ class SemanticAnalyzer:
             # For query, just transform using the fitted vectorizer
             return self.vectorizer.transform(texts)
     
+    def _get_ensemble_scores(self, comments, query_text):
+        """Get similarity scores from all models and combine them using ensemble weights."""
+        logging.info("Calculating ensemble scores...")
+        
+        # Initialize dictionaries to store embeddings and scores
+        embeddings = {}
+        similarities = {}
+        
+        # Get embeddings and scores for each model
+        for model in ['beto', 'use', 'tfidf']:
+            # Temporarily set model name to get embeddings
+            original_model = self.model_name
+            self.model_name = model
+            self._initialize_models()
+            
+            # Get embeddings
+            if model == 'tfidf':
+                comment_embeddings = self._get_embeddings(comments, is_query=False)
+                query_embedding = self._get_embeddings([query_text], is_query=True)
+                similarities[model] = cosine_similarity(query_embedding, comment_embeddings).flatten()
+            else:
+                comment_embeddings = self._get_embeddings(comments)
+                query_embedding = self._get_embeddings(query_text)
+                if model == 'use':
+                    similarities[model] = [cosine_similarity(query_embedding.reshape(1, -1), 
+                                                          comment_embedding.reshape(1, -1))[0][0] 
+                                         for comment_embedding in comment_embeddings]
+                else:  # beto
+                    similarities[model] = [cosine_similarity(query_embedding, comment_embedding)[0][0] 
+                                         for comment_embedding in comment_embeddings]
+            
+            # Restore original model
+            self.model_name = original_model
+            self._initialize_models()
+        
+        # Calculate ensemble scores
+        ensemble_scores = np.zeros(len(comments))
+        for model, weight in self.ensemble_weights.items():
+            ensemble_scores += weight * np.array(similarities[model])
+        
+        return ensemble_scores, similarities
+
     def analyze(self):
         # Load and preprocess data
         self._load_data()
@@ -235,78 +297,131 @@ class SemanticAnalyzer:
         
         # Get embeddings for comments and query
         comments = self.dataframe['comment_processed'].values
-        if self.model_name == 'tfidf':
-            # For TF-IDF, fit on comments first, then transform both
-            comment_embeddings = self._get_embeddings(comments, is_query=False)
-            query_embedding = self._get_embeddings([query_text], is_query=True)
+        
+        if self.use_ensemble:
+            # Get ensemble scores
+            similarities, individual_scores = self._get_ensemble_scores(comments, query_text)
+            
+            # Add individual model scores to dataframe
+            for model, scores in individual_scores.items():
+                self.dataframe[f'{model}_score'] = scores
+            
+            # Add ensemble score
+            self.dataframe['ensemble_score'] = similarities
+            
+            # Get top N results based on ensemble score
+            top_indices = similarities.argsort()[-self.top_n:][::-1]
+            top_comments = self.dataframe.iloc[top_indices].copy()
+            
+            # Create output filename for ensemble results
+            output_filename = f"results/top{self.top_n}_ensemble_q{self.question_number}.csv"
         else:
-            comment_embeddings = self._get_embeddings(comments)
-            query_embedding = self._get_embeddings(query_text)
+            # Original single-model analysis
+            if self.model_name == 'tfidf':
+                comment_embeddings = self._get_embeddings(comments, is_query=False)
+                query_embedding = self._get_embeddings([query_text], is_query=True)
+            else:
+                comment_embeddings = self._get_embeddings(comments)
+                query_embedding = self._get_embeddings(query_text)
+            
+            # Calculate similarities
+            logging.info("Calculating semantic similarities...")
+            if self.model_name == 'tfidf':
+                similarities = cosine_similarity(query_embedding, comment_embeddings).flatten()
+            elif self.model_name == 'use':
+                similarities = [cosine_similarity(query_embedding.reshape(1, -1), 
+                                               comment_embedding.reshape(1, -1))[0][0] 
+                              for comment_embedding in comment_embeddings]
+            else:  # beto
+                similarities = [cosine_similarity(query_embedding, comment_embedding)[0][0] 
+                              for comment_embedding in comment_embeddings]
+            
+            # Convert similarities to numpy array
+            similarities = np.array(similarities)
+            
+            # Get top N results
+            top_indices = similarities.argsort()[-self.top_n:][::-1]
+            top_comments = self.dataframe.iloc[top_indices].copy()
+            
+            # Add similarity scores to the results
+            top_comments['similarity_score'] = similarities[top_indices]
+            
+            # Create output filename with model, question, and N
+            output_filename = f"results/top{self.top_n}_{self.model_name}_q{self.question_number}.csv"
         
-        # Calculate similarities
-        logging.info("Calculating semantic similarities...")
-        if self.model_name == 'tfidf':
-            similarities = cosine_similarity(query_embedding, comment_embeddings).flatten()
-        elif self.model_name == 'use':
-            similarities = [cosine_similarity(query_embedding.reshape(1, -1), 
-                                           comment_embedding.reshape(1, -1))[0][0] 
-                          for comment_embedding in comment_embeddings]
-        else:  # beto
-            similarities = [cosine_similarity(query_embedding, comment_embedding)[0][0] 
-                          for comment_embedding in comment_embeddings]
-        
-        # Convert similarities to numpy array
-        similarities = np.array(similarities)
-        
-        # Get top N results
-        top_indices = similarities.argsort()[-self.top_n:][::-1]
-        top_comments = self.dataframe.iloc[top_indices].copy()
-        
-        # Add similarity scores to the results
-        top_comments['similarity_score'] = similarities[top_indices]
-        
-        # Create output filename with model, question, and N
-        output_filename = f"results/top{self.top_n}_{self.model_name}_q{self.question_number}.csv"
+        # Save results
         output_path = Path(output_filename)
         output_path.parent.mkdir(parents=True, exist_ok=True)
         top_comments.to_csv(output_filename, index=False)
         
         # Log results summary
         logging.info(f"\nResults Summary:")
-        logging.info(f"Model: {self.model_name}")
+        if self.use_ensemble:
+            logging.info("Ensemble Analysis")
+            logging.info(f"Model weights: {self.ensemble_weights}")
+        else:
+            logging.info(f"Model: {self.model_name}")
         logging.info(f"Question: {self.question_number}")
         logging.info(f"Top {self.top_n} responses saved to {output_filename}")
-        logging.info(f"Similarity scores range: {min(similarities):.3f} to {max(similarities):.3f}")
+        
+        if self.use_ensemble:
+            logging.info(f"Ensemble scores range: {min(similarities):.3f} to {max(similarities):.3f}")
+        else:
+            logging.info(f"Similarity scores range: {min(similarities):.3f} to {max(similarities):.3f}")
         
         # Log sample of top results
         logging.info("\nTop 5 most similar responses:")
         for i, (_, row) in enumerate(top_comments.head().iterrows(), 1):
-            logging.info(f"\n{i}. Score: {row['similarity_score']:.3f}")
+            if self.use_ensemble:
+                logging.info(f"\n{i}. Ensemble Score: {row['ensemble_score']:.3f}")
+                logging.info(f"Individual scores - BETO: {row['beto_score']:.3f}, USE: {row['use_score']:.3f}, TF-IDF: {row['tfidf_score']:.3f}")
+            else:
+                logging.info(f"\n{i}. Score: {row['similarity_score']:.3f}")
             logging.info(f"Comment: {row['comment']}")
         
         return top_comments
 
 def main():
     parser = argparse.ArgumentParser(description='Semantic Analysis of Educational Responses')
-    parser.add_argument('-m', '--model', choices=['beto', 'use', 'tfidf'], required=True,
-                      help='Model to use for analysis (beto, use, or tfidf)')
+    parser.add_argument('-m', '--model', choices=['beto', 'use', 'tfidf', 'ensemble'], required=True,
+                      help='Model to use for analysis (beto, use, tfidf, or ensemble)')
     parser.add_argument('-c', '--case', required=True,
                       help='Input file containing the case text')
     parser.add_argument('-q', '--question', type=int, choices=[1, 2], required=True,
                       help='Question number to analyze (1 or 2)')
     parser.add_argument('-n', '--topn', type=int, default=30,
                       help='Number of top responses to select (default: 30)')
+    parser.add_argument('--beto-weight', type=float, default=0.333333,
+                      help='Weight for BETO model in ensemble (default: 0.333333)')
+    parser.add_argument('--use-weight', type=float, default=0.333333,
+                      help='Weight for USE model in ensemble (default: 0.333333)')
+    parser.add_argument('--tfidf-weight', type=float, default=0.333333,
+                      help='Weight for TF-IDF model in ensemble (default: 0.333333)')
     
     args = parser.parse_args()
     
     logging.info("Starting semantic analysis...")
     logging.info(f"Configuration: Model={args.model}, Question={args.question}, TopN={args.topn}")
     
+    use_ensemble = args.model == 'ensemble'
+    model_name = 'beto' if use_ensemble else args.model  # Default to beto for ensemble initialization
+    
+    # Create weights dictionary if using ensemble
+    weights = None
+    if use_ensemble:
+        weights = {
+            'beto': args.beto_weight,
+            'use': args.use_weight,
+            'tfidf': args.tfidf_weight
+        }
+    
     analyzer = SemanticAnalyzer(
-        model_name=args.model,
+        model_name=model_name,
         case_file=args.case,
         question_number=args.question,
-        top_n=args.topn
+        top_n=args.topn,
+        use_ensemble=use_ensemble,
+        weights=weights
     )
     
     results = analyzer.analyze()

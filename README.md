@@ -1,6 +1,6 @@
 # Semantic Educational Analysis
 
-This repository contains the implementation of a semantic analysis system for educational responses, as described in our paper: *"Low-Footprint NLP for Reducing Teacher’s Orchestration Load in Computer-Supported Case-Based Learning Environments"* submitted to the Journal of Universal Computer Science. The system uses three different models (BETO, Universal Sentence Encoder, and TF-IDF) to analyze and rank educational responses based on their semantic similarity to given questions and case studies.
+This repository contains the implementation of a semantic analysis system for educational responses, as described in our paper: *"Low-Footprint NLP for Reducing Teacher's Orchestration Load in Computer-Supported Case-Based Learning Environments"* submitted to the Journal of Universal Computer Science. The system uses three different models (BETO, Universal Sentence Encoder, and TF-IDF) to analyze and rank educational responses based on their semantic similarity to given questions and case studies.
 
 ## Features
 
@@ -8,6 +8,7 @@ This repository contains the implementation of a semantic analysis system for ed
   - BETO (Spanish BERT)
   - Universal Sentence Encoder
   - TF-IDF
+- Ensemble analysis combining all three models with customizable weights
 - Configurable number of top responses
 - Support for Spanish language processing
 - Automatic stopwords removal and text preprocessing
@@ -38,15 +39,18 @@ pip install -r requirements.txt
 The script can be run from the command line with the following arguments:
 
 ```bash
-python main.py -m MODEL -c CASE_FILE -q QUESTION_NUMBER [-n TOP_N]
+python main.py -m MODEL -c CASE_FILE -q QUESTION_NUMBER [-n TOP_N] [--beto-weight WEIGHT] [--use-weight WEIGHT] [--tfidf-weight WEIGHT]
 ```
 
 ### Arguments
 
-- `-m, --model`: Model to use for analysis (choices: 'beto', 'use', 'tfidf')
+- `-m, --model`: Model to use for analysis (choices: 'beto', 'use', 'tfidf', 'ensemble')
 - `-c, --case`: Input file containing the case text
 - `-q, --question`: Question number to analyze (1 or 2)
 - `-n, --topn`: Number of top responses to select (default: 30)
+- `--beto-weight`: Weight for BETO model in ensemble (default: 0.333333)
+- `--use-weight`: Weight for USE model in ensemble (default: 0.333333)
+- `--tfidf-weight`: Weight for TF-IDF model in ensemble (default: 0.333333)
 
 ### Available Questions
 
@@ -55,11 +59,30 @@ The system includes two predefined questions:
 1. "¿Es adecuado que Laura le dedique paulatinamente más tiempo al trabajo y su desarrollo profesional que a la familia y a las otras dimensiones de su vida?"
 2. "¿Respecto de los ingenieros que renuncian al proyecto debido al impacto generado, qué decisión le parece más correcta?"
 
-### Example
+### Examples
 
+1. Using a single model:
 ```bash
 python main.py -m tfidf -c data/case.txt -q 1 -n 30
 ```
+
+2. Using ensemble with default weights (equal weights for all models):
+```bash
+python main.py -m ensemble -c data/case.txt -q 1 -n 30
+```
+
+3. Using ensemble with custom weights:
+```bash
+python main.py -m ensemble -c data/case.txt -q 1 -n 30 --beto-weight 0.2 --use-weight 0.5 --tfidf-weight 0.3
+```
+
+### Output
+
+The script generates a CSV file containing the top N responses ranked by semantic similarity to the question and case study. When using ensemble mode, the output includes:
+
+- Individual scores from each model (`beto_score`, `use_score`, `tfidf_score`)
+- Combined ensemble score (`ensemble_score`)
+- All scores are normalized and weighted according to the specified weights
 
 ### Input File Formats
 
@@ -74,9 +97,38 @@ python main.py -m tfidf -c data/case.txt -q 1 -n 30
      - `phase`: Phase number (only Phase 1 is used)
      - `df`: Question number (1 or 2) 
 
-### Output
+### Programmatic Usage
 
-The script generates a CSV file containing the top N responses ranked by semantic similarity to the question and case study.
+You can also use the analyzer programmatically:
+
+```python
+from main import SemanticAnalyzer
+
+# Single model analysis
+analyzer = SemanticAnalyzer(
+    model_name='tfidf',
+    case_file='data/case.txt',
+    question_number=1,
+    top_n=30
+)
+results = analyzer.analyze()
+
+# Ensemble analysis with custom weights
+weights = {
+    'beto': 0.2,
+    'use': 0.5,
+    'tfidf': 0.3
+}
+analyzer = SemanticAnalyzer(
+    model_name='beto',  # This will be overridden for ensemble
+    case_file='data/case.txt',
+    question_number=1,
+    top_n=30,
+    use_ensemble=True,
+    weights=weights
+)
+results = analyzer.analyze()
+```
 
 ## Citation
 
@@ -84,7 +136,7 @@ If you use this code in your research, please cite our paper:
 
 ```bibtex
 @article{low_footprint_nlp,
-  title={Low-Footprint NLP for Reducing Teacher’s Orchestration Load in Computer-Supported Case-Based Learning Environments},
+  title={Low-Footprint NLP for Reducing Teacher's Orchestration Load in Computer-Supported Case-Based Learning Environments},
   author={Claudio Alvarez,Andres Carvallo,Gustavo Zurita  Names},
   journal={Journal of Universal Computer Science},
   year={2025}
