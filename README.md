@@ -38,7 +38,7 @@ pip install -r requirements.txt
 The script can be run from the command line with the following arguments:
 
 ```bash
-python main.py -m MODEL -c CASE_FILE -q QUESTION_NUMBER -o OUTPUT_FILE [-n TOP_N]
+python main.py -m MODEL -c CASE_FILE -q QUESTION_NUMBER [-n TOP_N]
 ```
 
 ### Arguments
