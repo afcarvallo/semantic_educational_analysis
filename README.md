@@ -151,10 +151,6 @@ Note: When running Valgrind with Python, you might need to use the `--suppressio
 valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --gen-suppressions=all python main.py -m MODEL -c data/case.txt -q 1 > python.supp
 ```
 
-### Programmatic Usage
-
-You can also use the analyzer programmatically:
-
 ## Citation
 
 If you use this code in your research, please cite our paper:
