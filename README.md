@@ -1,4 +1,4 @@
-# Semantic Educational Analysis
+# Low-Footprint NLP for Reducing Teacher's Orchestration Load in CSCL Environments
 
 This repository contains the implementation of a semantic analysis system for educational responses, as described in our paper: *"Low-Footprint NLP for Reducing Teacher's Orchestration Load in Computer-Supported Case-Based Learning Environments"* submitted to the Journal of Universal Computer Science. The system uses three different models (BETO, Universal Sentence Encoder, and TF-IDF) to analyze and rank educational responses based on their semantic similarity to given questions and case studies.
 
@@ -173,19 +173,6 @@ Performance metrics to look for:
 Note: When running Valgrind with Python, you might need to use the `--suppressions` flag to suppress Python-specific warnings. You can generate a suppression file using:
 ```bash
 valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --gen-suppressions=all python main.py -m MODEL -c data/case.txt -q 1 > python.supp
-```
-
-## Citation
-
-If you use this code in your research, please cite our paper:
-
-```bibtex
-@article{low_footprint_nlp,
-  title={Low-Footprint NLP for Reducing Teacher's Orchestration Load in Computer-Supported Case-Based Learning Environments},
-  author={Claudio Alvarez,Andres Carvallo,Gustavo Zurita},
-  journal={Journal of Universal Computer Science},
-  year={2025}
-}
 ```
 
 ## License
