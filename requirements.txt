@@ -6,3 +6,6 @@ nltk>=3.6.0
 scikit-learn>=0.24.0
 tensorflow>=2.6.0
 tensorflow-hub>=0.12.0 
+accelerate>=0.24.0
+huggingface-hub>=0.24.0
+huggingface-cli>=0.24.0

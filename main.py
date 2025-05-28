@@ -14,6 +14,7 @@ import logging
 import os
 import warnings
 import sys
+from huggingface_hub import login, HfFolder
 
 # Suppress warnings
 warnings.filterwarnings('ignore')
@@ -35,6 +36,7 @@ def setup_environment():
     # Create necessary directories
     os.makedirs('data', exist_ok=True)
     os.makedirs('results', exist_ok=True)
+    os.makedirs('models', exist_ok=True)
     
     # Set up NLTK data directory in the project folder
     nltk_data_dir = os.path.join(os.getcwd(), 'nltk_data')
@@ -54,10 +56,12 @@ def setup_environment():
         sys.exit(1)
     
     # Check GPU availability
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    logging.info(f"Using device: {device}")
     if torch.cuda.is_available():
-        logging.info(f"GPU: {torch.cuda.get_device_name(0)}")
+        device = torch.device('cuda')
+        logging.info(f"Using GPU: {torch.cuda.get_device_name(0)}")
+    else:
+        device = torch.device('cpu')
+        logging.info("Using CPU")
     
     return device
 
@@ -89,7 +93,7 @@ class DataLoader:
             raise FileNotFoundError(f"Input file not found: {self.input_file}")
         
         # Load dataframe
-        self.dataframe = pd.read_csv(self.input_file)
+        self.dataframe = pd.read_csv(self.input_file) 
         initial_size = len(self.dataframe)
         logging.info(f"Loaded {initial_size} total responses")
         
@@ -104,7 +108,7 @@ class DataLoader:
         # Preprocess comments
         self._preprocess_comments()
         
-        return self.dataframe #.sample(50) 
+        return self.dataframe.sample(50) 
     
     def _preprocess_comments(self):
         """Preprocess the comments in the dataframe."""
@@ -132,7 +136,7 @@ class DataLoader:
         logging.info(f"Average comment length: {avg_length:.1f} characters")
 
 class SemanticAnalyzer:
-    def __init__(self, model_name, case_file, question_number, top_n=30, use_ensemble=False, weights=None):
+    def __init__(self, model_name, case_file, question_number, top_n=30, use_ensemble=False, weights=None, hf_token=None):
         self.model_name = model_name
         self.case_file = case_file
         self.question_number = question_number
@@ -140,6 +144,7 @@ class SemanticAnalyzer:
         self.use_ensemble = use_ensemble
         self.device = setup_environment()
         self.stop_words = set(stopwords.words('spanish'))
+        self.hf_token = hf_token
         
         # Define ensemble weights
         if weights is None:
@@ -168,8 +173,30 @@ class SemanticAnalyzer:
     def _initialize_models(self):
         logging.info(f"Loading {self.model_name} model...")
         if self.model_name == 'beto':
-            self.tokenizer = AutoTokenizer.from_pretrained('dccuchile/bert-base-spanish-wwm-cased')
-            self.model = BertModel.from_pretrained('dccuchile/bert-base-spanish-wwm-cased')
+            # Login to Hugging Face if token is provided
+            if self.hf_token:
+                login(token=self.hf_token)
+            
+            # Set up model cache directory
+            cache_dir = os.path.join(os.getcwd(), 'models', 'bert-base-spanish-wwm-cased')
+            os.makedirs(cache_dir, exist_ok=True)
+            
+            try:
+                self.tokenizer = AutoTokenizer.from_pretrained(
+                    'dccuchile/bert-base-spanish-wwm-cased',
+                    cache_dir=cache_dir,
+                    use_safetensors=True
+                )
+                self.model = BertModel.from_pretrained(
+                    'dccuchile/bert-base-spanish-wwm-cased',
+                    cache_dir=cache_dir,
+                    device_map=self.device,
+                    use_safetensors=True
+                )
+            except Exception as e:
+                logging.error(f"Error loading BERT model: {str(e)}")
+                logging.error("Please make sure you have a valid Hugging Face token and internet connection")
+                raise
         elif self.model_name == 'use':
             self.use_model = hub.load("https://tfhub.dev/google/universal-sentence-encoder/4")
         elif self.model_name == 'tfidf':
@@ -397,6 +424,8 @@ def main():
                       help='Weight for USE model in ensemble (default: 0.333333)')
     parser.add_argument('--tfidf-weight', type=float, default=0.333333,
                       help='Weight for TF-IDF model in ensemble (default: 0.333333)')
+    parser.add_argument('--hf-token',
+                      help='Hugging Face API token for accessing models')
     
     args = parser.parse_args()
     
@@ -421,7 +450,8 @@ def main():
         question_number=args.question,
         top_n=args.topn,
         use_ensemble=use_ensemble,
-        weights=weights
+        weights=weights,
+        hf_token=args.hf_token
     )
     
     results = analyzer.analyze()

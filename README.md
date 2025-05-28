@@ -34,6 +34,29 @@ source venv/bin/activate  # On Windows, use: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+### Hugging Face Authentication
+
+To use the BETO model, you need to authenticate with Hugging Face. Follow these steps:
+
+1. Create a Hugging Face account at https://huggingface.co/join if you don't have one already.
+
+2. Get your access token:
+   - Go to https://huggingface.co/settings/tokens
+   - Click "New token"
+   - Give it a name and select "read" role
+   - Copy the generated token
+
+3. Login using the Hugging Face CLI:
+```bash
+huggingface-cli login
+```
+When prompted, paste your access token.
+
+Alternatively, you can set the token as an environment variable:
+```bash
+export HUGGING_FACE_HUB_TOKEN=your_token_here
+```
+
 ## Usage
 
 The script can be run from the command line with the following arguments:
